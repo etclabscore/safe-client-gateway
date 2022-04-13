@@ -5,7 +5,7 @@ use rocket::response::content;
 
 #[get("/health")]
 pub async fn health(context: RequestContext) -> ApiResult<content::Json<String>> {
-    CacheResponse::new(&context)
+    CacheResponse::new(&context, "1") // TODO remove hardcoded chain_id hack
         .resp_generator(|| async { Ok(String::new()) })
         .execute()
         .await

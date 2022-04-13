@@ -36,7 +36,7 @@ pub async fn get_balances(
     trusted: Option<bool>,
     exclude_spam: Option<bool>,
 ) -> ApiResult<content::Json<String>> {
-    CacheResponse::new(&context)
+    CacheResponse::new(&context, &chain_id)
         .duration(balances_cache_duration())
         .resp_generator(|| {
             if feature_flag_balances_rate_implementation() {
@@ -73,7 +73,7 @@ pub async fn get_balances(
 /// The entries are sorted alphabetically, with the exception of `USD` and `EUR` being placed in the top of the list in that order.
 #[get("/v1/balances/supported-fiat-codes")]
 pub async fn get_supported_fiat(context: RequestContext) -> ApiResult<content::Json<String>> {
-    CacheResponse::new(&context)
+    CacheResponse::new(&context, "1") // TODO remove hardcoded chain_id hack
         .resp_generator(|| fiat_codes(&context))
         .execute()
         .await

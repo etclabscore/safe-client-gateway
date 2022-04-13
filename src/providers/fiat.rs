@@ -21,10 +21,10 @@ pub struct FiatInfoProvider {
 }
 
 impl FiatInfoProvider {
-    pub fn new(context: &RequestContext) -> Self {
+    pub async fn new(chain_id: &str, context: &RequestContext) -> Self {
         FiatInfoProvider {
             client: context.http_client(),
-            cache: context.cache(),
+            cache: context.cache(chain_id).await,
         }
     }
 

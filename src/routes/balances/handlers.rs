@@ -19,7 +19,7 @@ pub async fn balances(
     exclude_spam: bool,
 ) -> ApiResult<Balances> {
     let info_provider = DefaultInfoProvider::new(chain_id, &context);
-    let fiat_info_provider = FiatInfoProvider::new(&context);
+    let fiat_info_provider = FiatInfoProvider::new(chain_id, &context).await;
     let url = core_uri!(
         info_provider,
         "/v1/safes/{}/balances/usd/?trusted={}&exclude_spam={}",
@@ -69,7 +69,7 @@ pub async fn balances(
 }
 
 pub async fn fiat_codes(context: &RequestContext) -> ApiResult<Vec<String>> {
-    let info_provider = FiatInfoProvider::new(&context);
+    let info_provider = FiatInfoProvider::new("1", &context).await; // TODO chain_id hardcoded hack
     let mut fiat_codes = info_provider.available_currency_codes().await?;
 
     let usd_index = fiat_codes.iter().position(|it| it.eq("USD")).unwrap();

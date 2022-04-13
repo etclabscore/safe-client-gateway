@@ -10,6 +10,7 @@ pub enum ChainCache {
 #[rocket::async_trait]
 pub trait CacheManager: Sync + Send {
     async fn cache_for_chain(&self, chain_cache: &ChainCache) -> Arc<dyn Cache>;
+    async fn cache_for_chain_id(&self, chain_id: &str) -> Arc<dyn Cache>;
 }
 
 pub struct RedisCacheManager {
@@ -33,5 +34,15 @@ impl CacheManager for RedisCacheManager {
             ChainCache::Mainnet => self.mainnet_cache.clone(),
             ChainCache::Other => self.default_cache.clone(),
         }
+    }
+
+    async fn cache_for_chain_id(&self, chain_id: &str) -> Arc<dyn Cache> {
+        let chain_cache = if chain_id == "1" {
+            ChainCache::Mainnet
+        } else {
+            ChainCache::Other
+        };
+        let cache = &self.cache_for_chain(&chain_cache).await;
+        cache.clone()
     }
 }

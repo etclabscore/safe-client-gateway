@@ -57,7 +57,7 @@ async fn get_last_collectible(
         safe_address,
     )?;
 
-    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache())
+    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache().await)
         .request_timeout(transaction_request_timeout())
         .execute()
         .await?;
@@ -90,7 +90,7 @@ async fn get_last_queued_tx(
         safe_address,
     )?;
 
-    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache())
+    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache().await)
         .request_timeout(transaction_request_timeout())
         .execute()
         .await?;
@@ -118,7 +118,7 @@ async fn get_last_history_tx(
         safe_address
     )?;
 
-    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache())
+    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache().await)
         .request_timeout(transaction_request_timeout())
         .execute()
         .await?;

@@ -20,7 +20,7 @@ pub async fn get_chain(
     context: RequestContext,
     chain_id: String,
 ) -> ApiResult<content::Json<String>> {
-    CacheResponse::new(&context)
+    CacheResponse::new(&context, &chain_id)
         .duration(chain_info_response_cache_duration())
         .resp_generator(|| get_single_chain(&context, &chain_id))
         .execute()
@@ -42,7 +42,7 @@ pub async fn get_chains(
     context: RequestContext,
     cursor: Option<String>,
 ) -> ApiResult<content::Json<String>> {
-    CacheResponse::new(&context)
+    CacheResponse::new(&context, "1") // TODO remove hardcoded chain_id hack
         .duration(chain_info_response_cache_duration())
         .resp_generator(|| get_chains_paginated(&context, &cursor))
         .execute()

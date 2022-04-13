@@ -18,7 +18,7 @@ pub async fn get_multisig_transaction_details(
     safe_tx_hash: &str,
 ) -> ApiResult<TransactionDetails> {
     let url = core_uri!(info_provider, "/v1/multisig-transactions/{}/", safe_tx_hash)?;
-    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache())
+    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache().await)
         .request_timeout(transaction_request_timeout())
         .execute()
         .await?;
@@ -51,7 +51,7 @@ async fn get_ethereum_transaction_details(
         tx_hash
     )?;
     debug!("url: {}", url);
-    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache())
+    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache().await)
         .request_timeout(transaction_request_timeout())
         .execute()
         .await?;
@@ -86,7 +86,7 @@ async fn get_module_transaction_details(
     )?;
 
     debug!("url: {}", url);
-    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache())
+    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache().await)
         .request_timeout(transaction_request_timeout())
         .execute()
         .await?;

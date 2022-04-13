@@ -115,10 +115,10 @@ impl<'a, R> CacheResponse<'a, R>
 where
     R: Serialize,
 {
-    pub fn new(context: &RequestContext) -> Self {
+    pub fn new(context: &RequestContext, chain_id: &str) -> Self {
         CacheResponse {
             key: context.request_id.to_string(),
-            cache: context.cache(),
+            cache: context.cache(chain_id),
             duration: request_cache_duration(),
             resp_generator: None,
         }
@@ -172,10 +172,10 @@ impl RequestCached {
         }
     }
 
-    pub fn new_from_context(url: String, context: &RequestContext) -> Self {
+    pub fn new_from_context(url: String, context: &RequestContext, chain_id: &str) -> Self {
         RequestCached {
             client: context.http_client(),
-            cache: context.cache(),
+            cache: context.cache(chain_id),
             url,
             request_timeout: default_request_timeout(),
             cache_duration: request_cache_duration(),

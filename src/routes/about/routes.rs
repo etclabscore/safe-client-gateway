@@ -28,7 +28,7 @@ pub async fn get_chains_about(
     context: RequestContext,
     chain_id: String,
 ) -> ApiResult<content::Json<String>> {
-    CacheResponse::new(&context)
+    CacheResponse::new(&context, &chain_id)
         .duration(about_cache_duration())
         .resp_generator(|| handlers::chains_about(&context, &chain_id))
         .execute()
@@ -78,7 +78,7 @@ pub async fn get_master_copies(
     context: RequestContext,
     chain_id: String,
 ) -> ApiResult<content::Json<String>> {
-    CacheResponse::new(&context)
+    CacheResponse::new(&context, &chain_id)
         .duration(about_cache_duration())
         .resp_generator(|| handlers::get_master_copies(&context, chain_id.as_str()))
         .execute()
@@ -99,7 +99,7 @@ pub async fn backbone(
 }
 
 #[doc(hidden)]
-#[get("/about/redis")]
+#[get("/v1/chains/<chain_id>/about/redis")]
 pub async fn redis(context: RequestContext, _token: AuthorizationToken) -> ApiResult<String> {
     Ok(context.cache().info().await.unwrap_or(String::new()))
 }

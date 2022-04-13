@@ -133,7 +133,7 @@ async fn fetch_cancellation_tx(
     safe_tx_hash: String,
 ) -> Option<MultisigTransaction> {
     let url = core_uri!(info_provider, "/v1/multisig-transactions/{}/", safe_tx_hash).ok()?;
-    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache())
+    let body = RequestCached::new(url, &info_provider.client(), &info_provider.cache().await)
         .request_timeout(transaction_request_timeout())
         .execute()
         .await

@@ -1,4 +1,5 @@
 use crate::cache::cache_operations::RequestCached;
+use crate::cache::manager::CacheManager;
 use crate::cache::Cache;
 use crate::common::models::addresses::AddressEx;
 use crate::common::models::backend::chains::ChainInfo;
@@ -106,13 +107,13 @@ pub trait InfoProvider {
 
     fn chain_id(&self) -> &str;
     fn client(&self) -> Arc<dyn HttpClient>;
-    fn cache(&self) -> Arc<dyn Cache>;
+    async fn cache(&self) -> Arc<dyn Cache>;
 }
 
 pub struct DefaultInfoProvider<'p> {
     pub chain_id: &'p str,
     client: Arc<dyn HttpClient>,
-    cache: Arc<dyn Cache>,
+    cache_manager: Arc<dyn CacheManager>,
     // Mutex is an async Mutex, meaning that the lock is non-blocking
     safe_cache: Mutex<HashMap<String, Option<SafeInfo>>>,
     token_cache: Mutex<HashMap<String, Option<TokenInfo>>>,
@@ -151,8 +152,9 @@ impl InfoProvider for DefaultInfoProvider<'_> {
 
     async fn safe_app_info(&self, url: &str) -> ApiResult<SafeAppInfo> {
         let manifest_url = build_manifest_url(url)?;
+        let cache = self.cache_manager.cache_for_chain_id(self.chain_id).await;
 
-        let manifest_json = RequestCached::new(manifest_url, &self.client, &self.cache)
+        let manifest_json = RequestCached::new(manifest_url, &self.client, &cache)
             .cache_duration(safe_app_manifest_cache_duration())
             .error_cache_duration(long_error_duration())
             .cache_all_errors()
@@ -169,7 +171,8 @@ impl InfoProvider for DefaultInfoProvider<'_> {
 
     async fn contract_info(&self, contract_address: &str) -> ApiResult<ContractInfo> {
         let url = core_uri!(self, "/v1/contracts/{}/", contract_address)?;
-        let contract_info_json = RequestCached::new(url, &self.client, &self.cache)
+        let cache = self.cache_manager.cache_for_chain_id(self.chain_id).await;
+        let contract_info_json = RequestCached::new(url, &self.client, &cache)
             .cache_duration(address_info_cache_duration())
             .error_cache_duration(long_error_duration())
             .request_timeout(contract_info_request_timeout())
@@ -207,8 +210,8 @@ impl InfoProvider for DefaultInfoProvider<'_> {
         self.client.clone()
     }
 
-    fn cache(&self) -> Arc<dyn Cache> {
-        self.cache.clone()
+    async fn cache(&self) -> Arc<dyn Cache> {
+        self.cache_manager.cache_for_chain_id(self.chain_id).await
     }
 }
 
@@ -217,7 +220,7 @@ impl<'a> DefaultInfoProvider<'a> {
         DefaultInfoProvider {
             chain_id,
             client: context.http_client(),
-            cache: context.cache(),
+            cache_manager: context.cache_manager(),
             safe_cache: Default::default(),
             token_cache: Default::default(),
             chain_cache: Default::default(),
@@ -250,7 +253,9 @@ impl DefaultInfoProvider<'_> {
 
     async fn load_safe_info(&self, safe: String) -> ApiResult<Option<SafeInfo>> {
         let url = core_uri!(self, "/v1/safes/{}/", safe)?;
-        let data = RequestCached::new(url, &self.client, &self.cache)
+        let cache = self.cache_manager.cache_for_chain_id(self.chain_id).await;
+
+        let data = RequestCached::new(url, &self.client, &cache)
             .cache_duration(safe_info_cache_duration())
             .error_cache_duration(short_error_duration())
             .request_timeout(safe_info_request_timeout())
@@ -262,6 +267,8 @@ impl DefaultInfoProvider<'_> {
     async fn populate_token_cache(&self) -> ApiResult<()> {
         let token_cache_size_count = token_cache_size_count();
         let url = core_uri!(self, "/v1/tokens/?limit={}", token_cache_size_count)?;
+        let cache = self.cache_manager.cache_for_chain_id(self.chain_id).await;
+
         let request = {
             let mut request = Request::new(url);
             request.timeout(Duration::from_millis(token_info_request_timeout()));
@@ -272,7 +279,7 @@ impl DefaultInfoProvider<'_> {
         let data: Page<TokenInfo> = serde_json::from_str(&response.body)?;
         let token_key = generate_token_key(self.chain_id);
         for token in data.results.iter() {
-            self.cache
+            cache
                 .insert_in_hash(&token_key, &token.address, &serde_json::to_string(&token)?)
                 .await;
         }
@@ -281,35 +288,34 @@ impl DefaultInfoProvider<'_> {
 
     async fn check_token_cache(&self) -> ApiResult<()> {
         let token_key = generate_token_key(&self.chain_id);
-        if self.cache.has_key(&token_key).await {
+        let cache = self.cache_manager.cache_for_chain_id(self.chain_id).await;
+
+        if cache.has_key(&token_key).await {
             return Ok(());
         }
-        self.cache
+        cache
             .insert_in_hash(&token_key, "state", "populating")
             .await;
         let result = self.populate_token_cache().await;
         if result.is_ok() {
-            self.cache
+            cache
                 .expire_entity(&token_key, token_info_cache_duration())
                 .await;
-            self.cache
-                .insert_in_hash(&token_key, "state", "populated")
-                .await;
+            cache.insert_in_hash(&token_key, "state", "populated").await;
         } else {
-            self.cache
+            cache
                 .expire_entity(&token_key, short_error_duration())
                 .await;
-            self.cache
-                .insert_in_hash(&token_key, "state", "errored")
-                .await;
+            cache.insert_in_hash(&token_key, "state", "errored").await;
         }
         result
     }
 
     async fn load_token_info(&self, token: String) -> ApiResult<Option<TokenInfo>> {
         self.check_token_cache().await?;
-        match self
-            .cache
+        let cache = self.cache_manager.cache_for_chain_id(self.chain_id).await;
+
+        match cache
             .get_from_hash(&generate_token_key(&self.chain_id), &token)
             .await
         {
@@ -320,7 +326,9 @@ impl DefaultInfoProvider<'_> {
 
     async fn load_chain_info(&self) -> ApiResult<Option<ChainInfo>> {
         let url = config_uri!("/v1/chains/{}/", self.chain_id);
-        let data = RequestCached::new(url, &self.client, &self.cache)
+        let cache = self.cache_manager.cache_for_chain_id(self.chain_id).await;
+
+        let data = RequestCached::new(url, &self.client, &cache)
             .cache_duration(chain_info_cache_duration())
             .error_cache_duration(short_error_duration())
             .request_timeout(chain_info_request_timeout())
@@ -332,7 +340,9 @@ impl DefaultInfoProvider<'_> {
 
     pub async fn master_copies(&self) -> ApiResult<Vec<MasterCopy>> {
         let url = core_uri!(self, "/v1/about/master-copies/")?;
-        let body = RequestCached::new(url, &self.client, &self.cache)
+        let cache = self.cache_manager.cache_for_chain_id(self.chain_id).await;
+
+        let body = RequestCached::new(url, &self.client, &cache)
             .cache_duration(request_cache_duration())
             .error_cache_duration(short_error_duration())
             .request_timeout(default_request_timeout())

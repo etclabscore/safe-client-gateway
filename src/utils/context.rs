@@ -1,3 +1,4 @@
+use crate::cache::manager::CacheManager;
 use crate::cache::Cache;
 use crate::config::scheme;
 use crate::utils::http_client::HttpClient;
@@ -8,7 +9,7 @@ pub struct RequestContext {
     pub request_id: String,
     pub host: String,
     http_client: Arc<dyn HttpClient>,
-    cache: Arc<dyn Cache>,
+    cache_manager: Arc<dyn CacheManager>,
 }
 
 impl RequestContext {
@@ -16,8 +17,15 @@ impl RequestContext {
         self.http_client.clone()
     }
 
-    pub fn cache(&self) -> Arc<dyn Cache> {
-        self.cache.clone()
+    pub fn cache_manager(&self) -> Arc<dyn CacheManager> {
+        self.cache_manager.clone()
+    }
+
+    pub async fn cache(&self, chain_id: &str) -> Arc<dyn Cache> {
+        self.cache_manager()
+            .cache_for_chain_id(chain_id)
+            .await
+            .clone()
     }
 
     #[cfg(test)]
@@ -25,7 +33,7 @@ impl RequestContext {
         request_id: String,
         host: String,
         http_client: &Arc<dyn HttpClient>,
-        cache: &Arc<dyn Cache>,
+        cache_manager: &Arc<dyn CacheManager>,
     ) -> Self {
         cache.invalidate_pattern("*").await;
 
@@ -33,7 +41,7 @@ impl RequestContext {
             request_id,
             host,
             http_client: http_client.clone(),
-            cache: cache.clone(),
+            cache_manager: cache_manager.clone(),
         }
     }
 }
@@ -43,9 +51,9 @@ impl<'r> FromRequest<'r> for RequestContext {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        let cache = request
+        let cache_manager = request
             .rocket()
-            .state::<Arc<dyn Cache>>()
+            .state::<Arc<dyn CacheManager>>()
             .expect("ServiceCache unavailable. Is it added to rocket instance?")
             .clone();
         let http_client = request
@@ -64,7 +72,7 @@ impl<'r> FromRequest<'r> for RequestContext {
         return request::Outcome::Success(RequestContext {
             request_id: uri,
             host,
-            cache,
+            cache_manager,
             http_client,
         });
     }

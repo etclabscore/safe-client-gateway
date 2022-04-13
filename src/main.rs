@@ -30,6 +30,7 @@ use crate::cache::redis::create_service_cache;
 use crate::cache::Cache;
 use crate::routes::error_catchers;
 use crate::utils::http_client::{setup_http_client, HttpClient};
+use cache::manager::{CacheManager, RedisCacheManager};
 use dotenv::dotenv;
 use rocket::{Build, Rocket};
 use routes::active_routes;
@@ -43,12 +44,12 @@ async fn rocket() -> Rocket<Build> {
     setup_logger();
 
     let client = setup_http_client();
-    let cache = create_service_cache().await;
+    let cache_manager = RedisCacheManager::new().await;
 
     rocket::build()
         .mount("/", active_routes())
         .register("/", error_catchers())
-        .manage(Arc::new(cache) as Arc<dyn Cache>)
+        .manage(Arc::new(cache_manager) as Arc<dyn CacheManager>)
         .manage(Arc::new(client) as Arc<dyn HttpClient>)
         .attach(monitoring::performance::PerformanceMonitor())
         .attach(CORS())
